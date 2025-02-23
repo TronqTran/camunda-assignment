@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0yybf6i" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.31.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.22.0">
+  <bpmn:process id="orderProcess" name="Quy trình đặt hàng" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:startEvent id="startEvent" name="Bắt đầu đặt hàng">
+      <bpmn:outgoing>Flow_0ljyi7d</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_0ljyi7d" sourceRef="startEvent" targetRef="confirmOrderTask" />
+    <bpmn:userTask id="confirmOrderTask" name="Xác nhận đơn hàng">
+      <bpmn:extensionElements />
+      <bpmn:incoming>Flow_0ljyi7d</bpmn:incoming>
+      <bpmn:outgoing>Flow_16xmh40</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_16xmh40" sourceRef="confirmOrderTask" targetRef="checkInventoryTask" />
+    <bpmn:serviceTask id="checkInventoryTask" name="Kiểm tra kho" camunda:class="com.example.workflow.delegates.CheckInventoryTaskDelegate">
+      <bpmn:incoming>Flow_16xmh40</bpmn:incoming>
+      <bpmn:outgoing>Flow_0w7ut4v</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="inventoryCheckGateway" name="Kho đủ hàng?">
+      <bpmn:incoming>Flow_0w7ut4v</bpmn:incoming>
+      <bpmn:outgoing>Flow_0rfouz5</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1w0m6vs</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_0w7ut4v" sourceRef="checkInventoryTask" targetRef="inventoryCheckGateway" />
+    <bpmn:sequenceFlow id="Flow_0rfouz5" name="Không đủ" sourceRef="inventoryCheckGateway" targetRef="sendNotificationTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!enoughStock}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="endEventOutOfStock" name="Đơn hàng thất bại">
+      <bpmn:incoming>Flow_0kxsq51</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0kxsq51" sourceRef="sendNotificationTask" targetRef="endEventOutOfStock" />
+    <bpmn:sequenceFlow id="Flow_1w0m6vs" name="Đủ hàng" sourceRef="inventoryCheckGateway" targetRef="paymentTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${enoughStock}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:userTask id="paymentTask" name="Khách hàng thanh toán">
+      <bpmn:incoming>Flow_1w0m6vs</bpmn:incoming>
+      <bpmn:outgoing>Flow_1uua4ct</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_1uua4ct" sourceRef="paymentTask" targetRef="paymentMenthod" />
+    <bpmn:serviceTask id="processPaymentTask" name="Xử lý thanh toán" camunda:class="com.example.workflow.delegates.ProcessPaymentTaskDelegate">
+      <bpmn:incoming>Flow_1e71euf</bpmn:incoming>
+      <bpmn:incoming>Flow_1nihbp5</bpmn:incoming>
+      <bpmn:outgoing>Flow_03dm9ol</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="paymentStatusGateway" name="Thanh toán thành công?">
+      <bpmn:incoming>Flow_03dm9ol</bpmn:incoming>
+      <bpmn:outgoing>Flow_0y0b12i</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1xwe8hq</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1f5maxn</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_03dm9ol" sourceRef="processPaymentTask" targetRef="paymentStatusGateway" />
+    <bpmn:sequenceFlow id="Flow_0y0b12i" name="Thất bại" sourceRef="paymentStatusGateway" targetRef="retryPaymentTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!paymentSuccess &amp;&amp; retryCount &lt; 3}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="retryPaymentTask" name="Thử lại thanh toán" camunda:class="com.example.workflow.delegates.RetryPaymentTaskDelegate">
+      <bpmn:incoming>Flow_0y0b12i</bpmn:incoming>
+      <bpmn:outgoing>Flow_1nihbp5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_1xwe8hq" name="Thất bại quá 3 lần" sourceRef="paymentStatusGateway" targetRef="cancelOrderTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!paymentSuccess &amp;&amp; retryCount &gt;= 3}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="cancelOrderTask" name="Hủy đơn hàng" camunda:class="com.example.workflow.delegates.CancelOrderTaskDelegate">
+      <bpmn:incoming>Flow_1xwe8hq</bpmn:incoming>
+      <bpmn:outgoing>Flow_0i48t4o</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endEventPaymentFailed" name="Thanh toán thất bại">
+      <bpmn:incoming>Flow_0i48t4o</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0i48t4o" sourceRef="cancelOrderTask" targetRef="endEventPaymentFailed" />
+    <bpmn:sequenceFlow id="Flow_1f5maxn" name="Thành công" sourceRef="paymentStatusGateway" targetRef="processOrderCODTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${paymentSuccess}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="shippingTask" name="Giao hàng" camunda:class="com.example.workflow.delegates.ShippingTaskDelegate">
+      <bpmn:incoming>Flow_01iih9f</bpmn:incoming>
+      <bpmn:outgoing>Flow_0nthzdj</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endEventSuccess" name="Đơn hàng hoàn thành">
+      <bpmn:incoming>Flow_1lzr78x</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="sendNotificationTask" name="Gửi thông báo hết hàng" camunda:class="com.example.workflow.delegates.NotifyOutOfStockService">
+      <bpmn:incoming>Flow_0rfouz5</bpmn:incoming>
+      <bpmn:outgoing>Flow_0kxsq51</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:sequenceFlow id="Flow_01iih9f" sourceRef="processOrderCODTask" targetRef="shippingTask" />
+    <bpmn:serviceTask id="processOrderCODTask" name="Xử lý đơn hàng" camunda:class="com.example.workflow.delegates.ProcessOrderCODDelegate">
+      <bpmn:incoming>Flow_1f5maxn</bpmn:incoming>
+      <bpmn:incoming>Flow_0697pfo</bpmn:incoming>
+      <bpmn:outgoing>Flow_01iih9f</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="paymentMenthod" name="Phương thức thanh toán?">
+      <bpmn:incoming>Flow_1uua4ct</bpmn:incoming>
+      <bpmn:outgoing>Flow_1e71euf</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0697pfo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_1e71euf" name="Thanh toán trước" sourceRef="paymentMenthod" targetRef="processPaymentTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${paymentMethod=="card"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0697pfo" name="Thanh toán khi nhận hàng" sourceRef="paymentMenthod" targetRef="processOrderCODTask">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${paymentMethod=="cash"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_1nihbp5" sourceRef="retryPaymentTask" targetRef="processPaymentTask" />
+    <bpmn:sequenceFlow id="Flow_0nthzdj" sourceRef="shippingTask" targetRef="completeOrderTask" />
+    <bpmn:sequenceFlow id="Flow_1lzr78x" sourceRef="completeOrderTask" targetRef="endEventSuccess" />
+    <bpmn:userTask id="completeOrderTask" name="Xác nhận hoàn thành đơn hàng">
+      <bpmn:incoming>Flow_0nthzdj</bpmn:incoming>
+      <bpmn:outgoing>Flow_1lzr78x</bpmn:outgoing>
+    </bpmn:userTask>
+  </bpmn:process>
+  <bpmn:message id="Message_CustomerConfirm" name="Message_CustomerConfirm" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="orderProcess">
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="startEvent">
+        <dc:Bounds x="152" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="128" y="205" width="85" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1yne99v_di" bpmnElement="confirmOrderTask">
+        <dc:Bounds x="240" y="140" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1i7u5qc_di" bpmnElement="checkInventoryTask">
+        <dc:Bounds x="380" y="140" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1cgngrk_di" bpmnElement="inventoryCheckGateway" isMarkerVisible="true">
+        <dc:Bounds x="525" y="155" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="515" y="131" width="69" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1ik3jrn_di" bpmnElement="endEventOutOfStock">
+        <dc:Bounds x="532" y="452" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="506" y="495" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0x2wtga_di" bpmnElement="paymentTask">
+        <dc:Bounds x="640" y="140" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_09t4gjn_di" bpmnElement="processPaymentTask">
+        <dc:Bounds x="920" y="140" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0g82cj7_di" bpmnElement="paymentStatusGateway" isMarkerVisible="true">
+        <dc:Bounds x="1075" y="155" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1056" y="118" width="87" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0ujfq1k_di" bpmnElement="retryPaymentTask">
+        <dc:Bounds x="1180" y="140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0ny07a8_di" bpmnElement="cancelOrderTask">
+        <dc:Bounds x="1180" y="240" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0mh8802_di" bpmnElement="endEventPaymentFailed">
+        <dc:Bounds x="1332" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1311" y="305" width="79" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0gwbxtc_di" bpmnElement="shippingTask">
+        <dc:Bounds x="1350" y="360" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_13yofz6_di" bpmnElement="endEventSuccess">
+        <dc:Bounds x="1682" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1663" y="425" width="76" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0yv741t_di" bpmnElement="sendNotificationTask">
+        <dc:Bounds x="500" y="310" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1hnvi4a_di" bpmnElement="processOrderCODTask">
+        <dc:Bounds x="1180" y="360" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1c3catg_di" bpmnElement="paymentMenthod" isMarkerVisible="true">
+        <dc:Bounds x="785" y="155" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="778" y="125" width="67" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1hrye76_di" bpmnElement="completeOrderTask">
+        <dc:Bounds x="1520" y="360" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0ljyi7d_di" bpmnElement="Flow_0ljyi7d">
+        <di:waypoint x="188" y="180" />
+        <di:waypoint x="240" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_16xmh40_di" bpmnElement="Flow_16xmh40">
+        <di:waypoint x="340" y="180" />
+        <di:waypoint x="380" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0w7ut4v_di" bpmnElement="Flow_0w7ut4v">
+        <di:waypoint x="480" y="180" />
+        <di:waypoint x="525" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0rfouz5_di" bpmnElement="Flow_0rfouz5">
+        <di:waypoint x="550" y="205" />
+        <di:waypoint x="550" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="556" y="255" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0kxsq51_di" bpmnElement="Flow_0kxsq51">
+        <di:waypoint x="550" y="390" />
+        <di:waypoint x="550" y="452" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1w0m6vs_di" bpmnElement="Flow_1w0m6vs">
+        <di:waypoint x="575" y="180" />
+        <di:waypoint x="640" y="180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="587" y="162" width="42" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1uua4ct_di" bpmnElement="Flow_1uua4ct">
+        <di:waypoint x="740" y="180" />
+        <di:waypoint x="785" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_03dm9ol_di" bpmnElement="Flow_03dm9ol">
+        <di:waypoint x="1020" y="180" />
+        <di:waypoint x="1075" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0y0b12i_di" bpmnElement="Flow_0y0b12i">
+        <di:waypoint x="1125" y="180" />
+        <di:waypoint x="1180" y="180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1133" y="162" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1xwe8hq_di" bpmnElement="Flow_1xwe8hq">
+        <di:waypoint x="1100" y="205" />
+        <di:waypoint x="1100" y="280" />
+        <di:waypoint x="1180" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1092" y="255" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0i48t4o_di" bpmnElement="Flow_0i48t4o">
+        <di:waypoint x="1280" y="280" />
+        <di:waypoint x="1332" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1f5maxn_di" bpmnElement="Flow_1f5maxn">
+        <di:waypoint x="1100" y="205" />
+        <di:waypoint x="1100" y="400" />
+        <di:waypoint x="1180" y="400" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1107" y="373" width="59" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_01iih9f_di" bpmnElement="Flow_01iih9f">
+        <di:waypoint x="1280" y="400" />
+        <di:waypoint x="1350" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1e71euf_di" bpmnElement="Flow_1e71euf">
+        <di:waypoint x="835" y="180" />
+        <di:waypoint x="920" y="180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="826" y="162" width="87" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0697pfo_di" bpmnElement="Flow_0697pfo">
+        <di:waypoint x="810" y="205" />
+        <di:waypoint x="810" y="430" />
+        <di:waypoint x="1180" y="430" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="816" y="396" width="73" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1nihbp5_di" bpmnElement="Flow_1nihbp5">
+        <di:waypoint x="1230" y="140" />
+        <di:waypoint x="1230" y="80" />
+        <di:waypoint x="970" y="80" />
+        <di:waypoint x="970" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0nthzdj_di" bpmnElement="Flow_0nthzdj">
+        <di:waypoint x="1450" y="400" />
+        <di:waypoint x="1520" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1lzr78x_di" bpmnElement="Flow_1lzr78x">
+        <di:waypoint x="1620" y="400" />
+        <di:waypoint x="1682" y="400" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
